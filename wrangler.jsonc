@@ -6,7 +6,6 @@
   "workers_dev": true,
   "vars": {
     "GOOGLE_CHAT_AUDIENCE": "https://cat-facts-bot.algo-alert-cramer.workers.dev/",
-    "RESPONSE_FORMAT": "card",
-    "CARD_IMAGE_URL": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Portrait_of_a_cat.jpg"
+    "RESPONSE_FORMAT": "card"
   }
 }

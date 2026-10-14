@@ -88,13 +88,12 @@ test("card responses escape HTML from the upstream API", async () => {
   const message = await response.json();
   assert.match(message.fallbackText, /Cats <b>/);
   assert.equal(message.cardsV2[0].card.sections[0].widgets[0].textParagraph.text,
-    "Cats &lt;b&gt; &amp; &quot;dogs&quot;");
+    "<i>Cats &lt;b&gt; &amp; &quot;dogs&quot;</i>");
 });
 
-test("default cards include Meow, the configured image, and only the refresh action", async () => {
-  const imageUrl = "https://example.com/cat.png";
+test("default cards include Meow and only the refresh action", async () => {
   const response = await fixture().fetch(await request(), {
-    GOOGLE_CHAT_AUDIENCE: audience, CARD_IMAGE_URL: imageUrl,
+    GOOGLE_CHAT_AUDIENCE: audience,
   });
   const message = await response.json();
   assert.equal(message.actionResponse, undefined);
@@ -102,10 +101,7 @@ test("default cards include Meow, the configured image, and only the refresh act
   assert.equal(message.fallbackText, "🐱 Meow\nCats have whiskers.");
   const card = message.cardsV2[0];
   assert.equal(card.cardId, "catFactCard");
-  assert.deepEqual(card.card.header, {
-    title: "Meow", subtitle: "Feline Wisdom",
-    imageUrl, imageType: "CIRCLE", imageAltText: "Cat portrait",
-  });
+  assert.deepEqual(card.card.header, { title: "Meow" });
   const buttons = card.card.sections.flatMap((section) => section.widgets)
     .flatMap((widget) => widget.buttonList?.buttons ?? []);
   assert.equal(buttons.length, 1);
@@ -134,7 +130,7 @@ test("refresh clicks fetch a new fact and update the same card repeatedly", asyn
         message = await response.json();
         assert.deepEqual(message.actionResponse, { type: "UPDATE_MESSAGE" });
         assert.equal(message.cardsV2[0].cardId, originalId);
-        assert.equal(message.cardsV2[0].card.sections[0].widgets[0].textParagraph.text, `Fact ${i}`);
+        assert.equal(message.cardsV2[0].card.sections[0].widgets[0].textParagraph.text, `<i>Fact ${i}</i>`);
         assert.equal(message.cardsV2[0].card.sections[0].widgets[2].buttonList.buttons[0]
           .onClick.action.function, "fetchNewFact");
       }

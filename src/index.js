@@ -14,7 +14,7 @@ function json(body, status = 200, headers = {}) {
   });
 }
 
-function factMessage(fact, format, imageUrl) {
+function factMessage(fact, format) {
   const text = `🐱 *Meow*\n${fact}`;
   if (format !== "card") return { text };
 
@@ -28,21 +28,14 @@ function factMessage(fact, format, imageUrl) {
     cardsV2: [{
       cardId: "catFactCard",
       card: {
-        header: {
-          title: "Meow",
-          subtitle: "Feline Wisdom",
-          ...(imageUrl ? {
-            imageUrl,
-            imageType: "CIRCLE",
-            imageAltText: "Cat portrait",
-          } : {}),
-        },
+        header: { title: "Meow" },
         sections: [{ widgets: [
-          { textParagraph: { text: escaped } },
+          { textParagraph: { text: `<i>${escaped}</i>` } },
           { divider: {} },
           { buttonList: { buttons: [{
             text: "Get Another Fact",
             type: "FILLED",
+            color: { red: 26 / 255, green: 115 / 255, blue: 232 / 255 },
             onClick: { action: { function: refreshFunction, loadIndicator: "SPINNER" } },
           }] } },
         ] }],
@@ -111,7 +104,7 @@ export function createWorker({ fetchImpl = globalThis.fetch, keySet = googleKeys
       // Existing cards remain interactive even if text mode is enabled later.
       const format = isRefresh ? "card" : (env.RESPONSE_FORMAT ?? "card");
       const respond = (fact) => json({
-        ...factMessage(fact, format, env.CARD_IMAGE_URL),
+        ...factMessage(fact, format),
         ...(isRefresh ? { actionResponse: { type: "UPDATE_MESSAGE" } } : {}),
       });
 

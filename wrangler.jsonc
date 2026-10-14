@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cat-facts-bot",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-13",
+  "workers_dev": true,
+  "vars": {
+    "GOOGLE_CHAT_AUDIENCE": "https://cat-facts-bot.algo-alert-cramer.workers.dev/",
+    "RESPONSE_FORMAT": "text"
+  }
+}

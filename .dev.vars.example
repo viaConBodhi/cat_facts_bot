@@ -1,0 +1,2 @@
+# Copy to .dev.vars for local development; use your own endpoint URL.
+GOOGLE_CHAT_AUDIENCE="https://your-worker.example.com/"

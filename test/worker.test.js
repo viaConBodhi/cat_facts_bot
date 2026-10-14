@@ -3,7 +3,7 @@ import test from "node:test";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createWorker } from "../src/index.js";
 
-const audience = "https://cat-facts-bot.algo-alert-cramer.workers.dev/";
+const audience = "https://chat-app.example.com/";
 const env = { GOOGLE_CHAT_AUDIENCE: audience, RESPONSE_FORMAT: "text" };
 const { publicKey, privateKey } = await generateKeyPair("RS256");
 const publicJwk = await exportJWK(publicKey);

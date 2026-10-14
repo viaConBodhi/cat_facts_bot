@@ -4,8 +4,8 @@
   "main": "src/index.js",
   "compatibility_date": "2026-10-13",
   "workers_dev": true,
+  "keep_vars": true,
   "vars": {
-    "GOOGLE_CHAT_AUDIENCE": "https://cat-facts-bot.algo-alert-cramer.workers.dev/",
     "RESPONSE_FORMAT": "card"
   }
 }

@@ -20,7 +20,7 @@ Workers' `fetch(request, env)` handler. Native `fetch` replaces Axios.
 
 ## Cloudflare build settings
 
-Connect this repository to the existing **cat-facts-bot** Worker. Use:
+Connect this repository to a **cat-facts-bot** Worker in your Cloudflare account. Use:
 
 | Setting | Value |
 | --- | --- |
@@ -41,14 +41,15 @@ script to Wrangler's `build.command`; this script itself invokes Wrangler.
 See [Cloudflare build configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
 and [Wrangler bundling](https://developers.cloudflare.com/workers/wrangler/custom-builds/).
 
-The configuration already uses your Worker name and this endpoint:
+After deployment, copy the HTTPS endpoint from your Worker's dashboard. In the
+Worker's **Settings > Variables and Secrets**, set the runtime variable
+`GOOGLE_CHAT_AUDIENCE` to that exact endpoint, including its trailing slash.
+This is a runtime setting, not a build-only environment variable.
 
-```text
-https://cat-facts-bot.algo-alert-cramer.workers.dev/
-```
-
-Deployment uses your Cloudflare account's Workers subdomain. Confirm that it is
-`algo-alert-cramer`; the Worker name alone doesn't select an account/subdomain.
+`keep_vars: true` in `wrangler.jsonc` preserves variables configured in the
+Cloudflare dashboard across deployments. An existing `GOOGLE_CHAT_AUDIENCE`
+value is retained; new installations must set it before testing Chat requests.
+See [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/#source-of-truth).
 
 ## Google Cloud Console settings
 
@@ -60,11 +61,11 @@ Deployment uses your Cloudflare account's Workers subdomain. Confirm that it is
    Workspace add-on**, confirming **Disable** if prompted. This code uses
    Chat interaction events (`type: "MESSAGE"`) and direct message responses.
 4. Enable **Join spaces and group conversations**. Leave **Support App Home** off.
-5. Under **Connection settings**, select **HTTP endpoint URL** and enter exactly
-   `https://cat-facts-bot.algo-alert-cramer.workers.dev/`.
+5. Under **Connection settings**, select **HTTP endpoint URL** and enter your
+   deployed Worker's HTTPS endpoint.
 6. Set **Authentication Audience** to **HTTP endpoint URL**, rather than
-   **Project Number**. The URL must match `GOOGLE_CHAT_AUDIENCE` in
-   `wrangler.jsonc`, including the trailing slash.
+   **Project Number**. The URL must match the runtime `GOOGLE_CHAT_AUDIENCE`
+   value configured in Cloudflare, including the trailing slash.
 7. Under **Visibility**, add your company email or a Google Group containing
    your intended coworkers. Save.
 8. In Google Chat, find/add the app and send it a direct message. In a shared
@@ -93,6 +94,12 @@ Use Node.js 22 or newer:
 
 ```sh
 npm ci
+cp -n .dev.vars.example .dev.vars
+```
+
+Set `GOOGLE_CHAT_AUDIENCE` in `.dev.vars` to your own endpoint URL, then run:
+
+```sh
 npm test
 npm run build
 npm run dev
@@ -136,6 +143,13 @@ For plain-text responses without a refresh button, set `RESPONSE_FORMAT` to
 `"text"` and redeploy. Buttons on previously sent cards still work.
 
 The app responds on demand. It doesn't send scheduled daily facts.
+
+## Deployment configuration
+
+The public documentation and test fixtures use generic examples. Configure your
+actual endpoint in Cloudflare's runtime settings and in the ignored `.dev.vars`
+file for local development. `.dev.vars.example` contains placeholders only.
+Keep API tokens, private keys, and other credentials out of tracked files.
 
 ## Troubleshooting
 

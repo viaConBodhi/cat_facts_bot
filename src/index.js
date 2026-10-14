@@ -5,6 +5,7 @@ const googleKeys = createRemoteJWKSet(
   { timeoutDuration: 5000 },
 );
 const chatServiceAccount = "chat@system.gserviceaccount.com";
+const refreshFunction = "fetchNewFact";
 
 function json(body, status = 200, headers = {}) {
   return Response.json(body, {
@@ -13,8 +14,8 @@ function json(body, status = 200, headers = {}) {
   });
 }
 
-function factMessage(fact, format) {
-  const text = `🐱 *Here is your Cat Fact:*\n${fact}`;
+function factMessage(fact, format, imageUrl) {
+  const text = `🐱 *Meow*\n${fact}`;
   if (format !== "card") return { text };
 
   // Card paragraphs interpret HTML, so escape third-party text.
@@ -22,12 +23,29 @@ function factMessage(fact, format) {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]);
   return {
-    text,
+    // Use notification fallback instead of repeating the fact above the card.
+    fallbackText: `🐱 Meow\n${fact}`,
     cardsV2: [{
       cardId: "catFactCard",
       card: {
-        header: { title: "Cat Fact Engine", subtitle: "Feline wisdom on demand" },
-        sections: [{ widgets: [{ textParagraph: { text: escaped } }] }],
+        header: {
+          title: "Meow",
+          subtitle: "Feline Wisdom",
+          ...(imageUrl ? {
+            imageUrl,
+            imageType: "CIRCLE",
+            imageAltText: "Cat portrait",
+          } : {}),
+        },
+        sections: [{ widgets: [
+          { textParagraph: { text: escaped } },
+          { divider: {} },
+          { buttonList: { buttons: [{
+            text: "Get Another Fact",
+            type: "FILLED",
+            onClick: { action: { function: refreshFunction, loadIndicator: "SPINNER" } },
+          }] } },
+        ] }],
       },
     }],
   };
@@ -83,10 +101,19 @@ export function createWorker({ fetchImpl = globalThis.fetch, keySet = googleKeys
       if (event.type === "ADDED_TO_SPACE") {
         return json({ text: "🐱 Hello! Send me a message, or @mention me in a space, for a cat fact." });
       }
-      if (event.type !== "MESSAGE" && event.type !== "APP_COMMAND") {
+      const isRefresh = event.type === "CARD_CLICKED"
+        && (event.common?.invokedFunction ?? event.action?.actionMethodName) === refreshFunction;
+      if (event.type !== "MESSAGE" && event.type !== "APP_COMMAND" && !isRefresh) {
         // Removed apps cannot send a farewell message; acknowledge other events.
         return json({});
       }
+
+      // Existing cards remain interactive even if text mode is enabled later.
+      const format = isRefresh ? "card" : (env.RESPONSE_FORMAT ?? "card");
+      const respond = (fact) => json({
+        ...factMessage(fact, format, env.CARD_IMAGE_URL),
+        ...(isRefresh ? { actionResponse: { type: "UPDATE_MESSAGE" } } : {}),
+      });
 
       try {
         const response = await fetchImpl("https://catfact.ninja/fact", {
@@ -98,10 +125,13 @@ export function createWorker({ fetchImpl = globalThis.fetch, keySet = googleKeys
         if (typeof data?.fact !== "string" || !data.fact.trim()) {
           throw new Error("Cat fact API returned no fact");
         }
-        return json(factMessage(data.fact.trim(), env.RESPONSE_FORMAT));
+        return respond(data.fact.trim());
       } catch (error) {
         // Avoid logging Chat event bodies or bearer tokens.
         console.error("Cat fact request failed:", error.message);
+        if (format === "card") {
+          return respond("I couldn't fetch a cat fact right now. Please try again!");
+        }
         return json({ text: "🐱 I couldn't fetch a cat fact right now. Please try again!" });
       }
     },

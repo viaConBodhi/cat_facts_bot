@@ -6,10 +6,12 @@ A small Cloudflare Worker that responds to Google Chat messages with a random
 fact from [catfact.ninja](https://catfact.ninja/fact).
 
 Google Chat sends an interaction event to the Worker using HTTP POST. The Worker
-fetches the fact and returns a Chat message such as:
+fetches the fact and returns a card with a **Meow** header, circular cat portrait,
+and **Get Another Fact** button. Refreshing replaces the fact in the existing
+message. In optional plain-text mode, it returns a message such as:
 
 ```json
-{ "text": "🐱 *Here is your Cat Fact:*\nCats have whiskers." }
+{ "text": "🐱 *Meow*\nCats have whiskers." }
 ```
 
 Browser JavaScript isn't needed. The Worker runs the JavaScript on the server.
@@ -112,12 +114,32 @@ JSON response. It doesn't fetch a fact; test that by messaging the app in Chat.
 The Worker fetches facts with an eight-second timeout and returns a friendly
 Chat message with HTTP 200 if the upstream API fails.
 
-## Optional cards
+## Card appearance and refresh
 
-Change `RESPONSE_FORMAT` from `"text"` to `"card"` in `wrangler.jsonc`, then
-redeploy. The response includes `cardsV2` with the fetched fact and text fallback.
-External fact text is escaped for card HTML. An image is omitted: an Unsplash
-homepage URL isn't a direct image URL.
+Cards are enabled by default (`RESPONSE_FORMAT: "card"` in `wrangler.jsonc`).
+External fact text is escaped for card HTML. `fallbackText` provides notification
+text without repeating the fact above the card. There is no Read Source button.
+
+**Get Another Fact** sends a `CARD_CLICKED` event to the same Worker endpoint.
+The Worker handles `fetchNewFact`, fetches a fact, and returns
+`actionResponse.type: "UPDATE_MESSAGE"` with the same `catFactCard` ID. Errors
+also display a card with the button so users can retry. No additional Google
+Console endpoint or OAuth scopes are needed for the refresh action.
+
+The default image is Leon Brooks' public-domain
+[Portrait of a cat](https://commons.wikimedia.org/wiki/File:Portrait_of_a_cat.jpg).
+Its direct JPEG URL is configured in `CARD_IMAGE_URL`. To use your existing
+logo instead, set that variable to:
+
+```text
+https://pub-f2abcd9e26414f72a9bbc7bfcd2ba64f.r2.dev/catFacts/catfacts.png
+```
+
+Set `CARD_IMAGE_URL` to an empty string to omit the card image. Changes require
+redeployment. The avatar configured in Google Console remains separate.
+
+For plain-text responses without a refresh button, set `RESPONSE_FORMAT` to
+`"text"` and redeploy. Buttons on previously sent cards still work.
 
 The app responds on demand. It doesn't send scheduled daily facts.
 

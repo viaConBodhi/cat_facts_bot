@@ -39,7 +39,7 @@ test("verified Chat messages fetch and return the fact in Google's text schema",
   const response = await worker.fetch(await request(), env);
   assert.equal(response.status, 200);
   assert.match(response.headers.get("Content-Type"), /application\/json/);
-  assert.deepEqual(await response.json(), { text: "🐱 *Here is your Cat Fact:*\nCats have whiskers." });
+  assert.deepEqual(await response.json(), { text: "🐱 *Meow*\nCats have whiskers." });
 });
 
 test("unauthorized requests are rejected before accessing the fact API", async (t) => {
@@ -86,9 +86,99 @@ test("card responses escape HTML from the upstream API", async () => {
   const worker = fixture(async () => Response.json({ fact: 'Cats <b> & "dogs"' }));
   const response = await worker.fetch(await request(), { ...env, RESPONSE_FORMAT: "card" });
   const message = await response.json();
-  assert.match(message.text, /Cats <b>/);
+  assert.match(message.fallbackText, /Cats <b>/);
   assert.equal(message.cardsV2[0].card.sections[0].widgets[0].textParagraph.text,
     "Cats &lt;b&gt; &amp; &quot;dogs&quot;");
+});
+
+test("default cards include Meow, the configured image, and only the refresh action", async () => {
+  const imageUrl = "https://example.com/cat.png";
+  const response = await fixture().fetch(await request(), {
+    GOOGLE_CHAT_AUDIENCE: audience, CARD_IMAGE_URL: imageUrl,
+  });
+  const message = await response.json();
+  assert.equal(message.actionResponse, undefined);
+  assert.equal(message.text, undefined);
+  assert.equal(message.fallbackText, "🐱 Meow\nCats have whiskers.");
+  const card = message.cardsV2[0];
+  assert.equal(card.cardId, "catFactCard");
+  assert.deepEqual(card.card.header, {
+    title: "Meow", subtitle: "Feline Wisdom",
+    imageUrl, imageType: "CIRCLE", imageAltText: "Cat portrait",
+  });
+  const buttons = card.card.sections.flatMap((section) => section.widgets)
+    .flatMap((widget) => widget.buttonList?.buttons ?? []);
+  assert.equal(buttons.length, 1);
+  assert.equal(buttons[0].text, "Get Another Fact");
+  assert.deepEqual(buttons[0].onClick, {
+    action: { function: "fetchNewFact", loadIndicator: "SPINNER" },
+  });
+});
+
+test("refresh clicks fetch a new fact and update the same card repeatedly", async (t) => {
+  for (const action of [
+    { common: { invokedFunction: "fetchNewFact" } },
+    { action: { actionMethodName: "fetchNewFact" } },
+  ]) {
+    await t.test(Object.keys(action)[0], async () => {
+      let count = 0;
+      const worker = fixture(async () => Response.json({ fact: `Fact ${++count}` }));
+      const cardEnv = { ...env, RESPONSE_FORMAT: "card" };
+      let message = await (await worker.fetch(await request(), cardEnv)).json();
+      const originalId = message.cardsV2[0].cardId;
+      for (let i = 2; i <= 3; i++) {
+        const response = await worker.fetch(await request({
+          type: "CARD_CLICKED", ...action, message,
+        }), cardEnv);
+        assert.equal(response.status, 200);
+        message = await response.json();
+        assert.deepEqual(message.actionResponse, { type: "UPDATE_MESSAGE" });
+        assert.equal(message.cardsV2[0].cardId, originalId);
+        assert.equal(message.cardsV2[0].card.sections[0].widgets[0].textParagraph.text, `Fact ${i}`);
+        assert.equal(message.cardsV2[0].card.sections[0].widgets[2].buttonList.buttons[0]
+          .onClick.action.function, "fetchNewFact");
+      }
+      assert.equal(count, 3);
+    });
+  }
+});
+
+test("refresh failures keep a retry button and update the existing message", async () => {
+  const worker = fixture(async () => new Response("unavailable", { status: 503 }));
+  const response = await worker.fetch(await request({
+    type: "CARD_CLICKED", common: { invokedFunction: "fetchNewFact" },
+  }), env);
+  const message = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(message.actionResponse.type, "UPDATE_MESSAGE");
+  assert.match(message.cardsV2[0].card.sections[0].widgets[0].textParagraph.text, /try again/);
+  assert.equal(message.cardsV2[0].card.sections[0].widgets[2].buttonList.buttons.length, 1);
+});
+
+test("unknown clicks do not fetch facts or update messages", async () => {
+  const worker = fixture(() => { assert.fail("Unknown actions must not fetch facts"); });
+  const response = await worker.fetch(await request({
+    type: "CARD_CLICKED", common: { invokedFunction: "unrelated" },
+  }), env);
+  assert.deepEqual(await response.json(), {});
+});
+
+test("refresh requests still require a valid Google bearer token", async () => {
+  const worker = fixture(() => { assert.fail("Unsigned clicks must not fetch facts"); });
+  const req = await request({ type: "CARD_CLICKED", common: { invokedFunction: "fetchNewFact" } });
+  req.headers.delete("Authorization");
+  assert.equal((await worker.fetch(req, env)).status, 401);
+});
+
+test("initial card failures provide a refresh button for retrying", async () => {
+  const worker = fixture(async () => { throw new Error("Network failure"); });
+  const response = await worker.fetch(await request(), { ...env, RESPONSE_FORMAT: "card" });
+  const message = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(message.actionResponse, undefined);
+  assert.match(message.fallbackText, /try again/);
+  assert.equal(message.cardsV2[0].card.sections[0].widgets[2].buttonList.buttons[0]
+    .onClick.action.function, "fetchNewFact");
 });
 
 test("upstream failures produce a friendly Chat message with HTTP 200", async (t) => {
